@@ -338,6 +338,7 @@ function ensureProfileJunctions(installDir) {
   };
   // 兜底层：.dsh/node_modules 上的联接（pnpm 只管理各 profile 内的 node_modules，不会动这一层）
   try { junctionFor(path.join(home, "node_modules")); } catch (_) {}
+  // profiles/node_modules 由 dsh 官方 healProfilesModuleFallback 按包建符号链接，不要整块占用
   for (const profile of ["web", "headless"]) {
     try { junctionFor(path.join(home, "profiles", profile, "node_modules")); } catch (_) {}
   }
