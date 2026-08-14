@@ -218,6 +218,66 @@ function extractTarGz(gzBuffer, destDir) {
 }
 
 // ---- 启动 ----
+function fileUrlOf(p) {
+  const segs = p.replace(/\\/g, "/").split("/");
+  return "file:///" + segs.map((s, i) => (i === 0 ? s : encodeURIComponent(s))).join("/");
+}
+
+function writeSplash(logDir, installDir, port) {
+  const html = `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DeepSeek Harness</title>
+<style>
+  html,body{margin:0;height:100%}
+  body{background:#0e1226;color:#e9edff;font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px}
+  .spin{width:46px;height:46px;border-radius:50%;border:4px solid rgba(255,255,255,.12);border-top-color:#4d6bfe;animation:r 1s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+  h1{font-size:17px;font-weight:600;margin:0}
+  p{font-size:13px;color:#8f98c0;margin:0}
+  #err{display:none;color:#ff8a8a;max-width:460px;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="spin"></div>
+<h1>DeepSeek Harness 正在启动…</h1>
+<p id="st">首次启动需要初始化配置，约需 15~30 秒，请稍候</p>
+<p id="err">启动超时。请稍后重新打开，或查看日志：安装目录 logs 文件夹下的 dsh-web.log</p>
+<script>
+(function () {
+  var url = "http://127.0.0.1:__PORT__";
+  var tries = 0;
+  function probe() {
+    var img = new Image();
+    img.onload = function () { location.replace(url); };
+    img.onerror = function () {
+      tries++;
+      if (tries > 180) {
+        document.getElementById("st").style.display = "none";
+        document.getElementById("err").style.display = "block";
+        return;
+      }
+      setTimeout(probe, 500);
+    };
+    img.src = url + "/favicon.svg?t=" + Date.now();
+  }
+  probe();
+})();
+</script>
+</body>
+</html>`;
+  const dir = logDir ?? path.join(installDir, "logs");
+  const file = path.join(dir, "starting.html");
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, html.replace("__PORT__", String(port)), "utf8");
+    return file;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function main() {
   const installDir = resolveInstallDir();
   const siblingMode = fs.existsSync(path.join(installDir, "runtime", "node.exe"));
@@ -238,16 +298,43 @@ async function main() {
     return;
   }
   // GUI 模式
+  const logDir = resolveLogDir(installDir);
+  const lockPath = path.join(logDir ?? installDir, "launch.lock");
+  const readLock = () => {
+    try { return JSON.parse(fs.readFileSync(lockPath, "utf8")); } catch (_) { return null; }
+  };
+  const writeLock = (port) => {
+    try { fs.writeFileSync(lockPath, JSON.stringify({ port, time: Date.now() }), { flag: "wx" }); return true; } catch (_) { return false; }
+  };
+
+  // 1) 已有实例：直接打开
   const existing = await findServingPort(BASE_PORT);
   if (existing !== null) {
     log("DeepSeek Harness 已在运行：http://127.0.0.1:" + existing);
     openBrowser("http://127.0.0.1:" + existing);
     process.exit(0);
   }
+
+  // 2) 另一个启动器正在引导：等待其端口就绪（避免慢启动期间重复开服）
+  const booting = readLock();
+  if (booting && typeof booting.port === "number" && Date.now() - booting.time < 90000) {
+    log("检测到正在进行的启动，等待其就绪（端口 " + booting.port + "）…");
+    for (let i = 0; i < 90; i++) {
+      const r = await httpGet("http://127.0.0.1:" + booting.port + "/", 1000);
+      if (r.ok) {
+        openBrowser("http://127.0.0.1:" + booting.port);
+        process.exit(0);
+      }
+      await sleep(1000);
+    }
+    try { fs.rmSync(lockPath, { force: true }); } catch (_) {}
+  }
+
+  // 3) 自己启动
   const port = await findFreePort(BASE_PORT);
   if (port === null) { log("错误：找不到可用端口（从 " + BASE_PORT + " 起）。"); process.exit(1); }
+  writeLock(port);
   let out = "ignore";
-  const logDir = resolveLogDir(installDir);
   if (logDir) {
     try { out = fs.openSync(path.join(logDir, "dsh-web.log"), "a"); } catch (_) {}
   }
@@ -259,21 +346,11 @@ async function main() {
   });
   child.unref();
   const url = "http://127.0.0.1:" + port;
-  log("正在启动 DeepSeek Harness（首次启动需初始化配置，请稍候）… " + url);
-  const deadline = Date.now() + 45000;
-  let up = false;
-  while (Date.now() < deadline) {
-    await sleep(500);
-    if (child.exitCode !== null) {
-      log("启动失败：服务进程提前退出，详情见 " + path.join(installDir, "logs", "dsh-web.log"));
-      process.exit(1);
-    }
-    const res = await httpGet(url + "/", 1500);
-    if (res.ok) { up = true; break; }
-  }
-  if (!up) { log("启动超时：详情见 " + path.join(installDir, "logs", "dsh-web.log")); process.exit(1); }
-  log("DeepSeek Harness 已启动：" + url);
-  openBrowser(url);
+
+  // 4) 立即打开浏览器显示"正在启动"占位页，就绪后自动跳转进入软件
+  const splashPath = writeSplash(logDir, installDir, port);
+  openBrowser(splashPath ? fileUrlOf(splashPath) : url);
+  log("DeepSeek Harness 正在启动：" + url);
   process.exit(0);
 }
 
