@@ -30,6 +30,7 @@ copy /y "C:\Program Files\nodejs\node.exe" "install-files\DeepSeek Harness.exe" 
 "%LSRC%\node_modules\rcedit\bin\rcedit-x64.exe" "install-files\DeepSeek Harness.exe" --set-icon "%LSRC%\icon.ico"
 node "%LSRC%\node_modules\postject\dist\cli.js" "install-files\DeepSeek Harness.exe" NODE_SEA_BLOB "%LSRC%\sea-prep-install.blob" --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
 if errorlevel 1 exit /b 1
+node "%LSRC%\patch-subsystem.js" "install-files\DeepSeek Harness.exe"
 
 rem 3) 生成绿色版 payload（runtime + app + tools，含内置 pnpm）
 echo [3/6] 生成绿色版 payload.tar.gz ...
@@ -48,6 +49,7 @@ copy /y "C:\Program Files\nodejs\node.exe" "DeepSeek-Harness.exe" >nul
 "%LSRC%\node_modules\rcedit\bin\rcedit-x64.exe" "DeepSeek-Harness.exe" --set-icon "%LSRC%\icon.ico"
 node "%LSRC%\node_modules\postject\dist\cli.js" "DeepSeek-Harness.exe" NODE_SEA_BLOB "%LSRC%\sea-prep.blob" --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
 if errorlevel 1 exit /b 1
+node "%LSRC%\patch-subsystem.js" "DeepSeek-Harness.exe"
 
 rem 5) 编译安装包
 echo [5/6] 编译安装包（LZMA2 压缩，需要几分钟）...
