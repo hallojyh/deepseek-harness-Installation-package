@@ -223,7 +223,7 @@ function fileUrlOf(p) {
   return "file:///" + segs.map((s, i) => (i === 0 ? s : encodeURIComponent(s))).join("/");
 }
 
-function writeSplash(logDir, installDir, port) {
+function writeSplash(logDir, installDir, port, failedText) {
   const html = `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -242,7 +242,7 @@ function writeSplash(logDir, installDir, port) {
 <body>
 <div class="spin"></div>
 <h1>DeepSeek Harness 正在启动…</h1>
-<p id="st">首次启动需要初始化配置，约需 15~30 秒，请稍候</p>
+<p id="st">__STATUS__</p>
 <p id="err">启动超时。请稍后重新打开，或查看日志：安装目录 logs 文件夹下的 dsh-web.log</p>
 <script>
 (function () {
@@ -271,7 +271,8 @@ function writeSplash(logDir, installDir, port) {
   const file = path.join(dir, "starting.html");
   try {
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(file, html.replace("__PORT__", String(port)), "utf8");
+    const finalHtml = failedText ? html.replace("__PORT__", String(port)).replace("__STATUS__", "启动失败，详情见下方日志").replace("var tries = 0;", "var tries = 180;").replace(/<div class=\"spin\"><\/div>/, "").replace("</h1>", "</h1><pre style=\"font-size:11px;color:#c9c9c9;max-width:640px;white-space:pre-wrap;max-height:40vh;overflow:auto;background:rgba(0,0,0,.25);padding:12px;border-radius:8px\">" + failedText.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]) + "</pre>") : html.replace("__PORT__", String(port)).replace("__STATUS__", "首次启动需要初始化配置，约需 15~30 秒，请稍候");
+    fs.writeFileSync(file, finalHtml, "utf8");
     return file;
   } catch (_) {
     return null;
@@ -343,12 +344,29 @@ async function main() {
     stdio: ["ignore", out, out],
     windowsHide: true,
     env,
+    cwd: installDir,
   });
   child.unref();
   const url = "http://127.0.0.1:" + port;
 
-  // 4) 立即打开浏览器显示"正在启动"占位页，就绪后自动跳转进入软件
-  const splashPath = writeSplash(logDir, installDir, port);
+  // 4) 快速失败检测：服务在数秒内退出说明启动失败，改为错误页并附日志
+  let failedText = null;
+  for (let i = 0; i < 6; i++) {
+    await sleep(500);
+    if (child.exitCode !== null) {
+      try {
+        const logFile = path.join(logDir ?? path.join(installDir, "logs"), "dsh-web.log");
+        const tail = fs.readFileSync(logFile, "utf8").split(/\r?\n/).slice(-25).join("\n");
+        failedText = tail || "（无日志）";
+      } catch (_) {
+        failedText = "（无日志）";
+      }
+      break;
+    }
+  }
+
+  // 5) 立即打开浏览器：正常显示"正在启动"占位页；失败显示错误页
+  const splashPath = writeSplash(logDir, installDir, port, failedText);
   openBrowser(splashPath ? fileUrlOf(splashPath) : url);
   log("DeepSeek Harness 正在启动：" + url);
   process.exit(0);
