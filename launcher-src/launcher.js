@@ -393,6 +393,7 @@ async function main() {
   // 3) 自己启动
   const port = await findFreePort(BASE_PORT);
   if (port === null) { log("错误：找不到可用端口（从 " + BASE_PORT + " 起）。"); process.exit(1); }
+  writeLock(port);
   let out = "ignore";
   if (logDir) {
     try { out = fs.openSync(path.join(logDir, "dsh-web.log"), "a"); if (typeof out === "number") logFd = out; } catch (_) {}
