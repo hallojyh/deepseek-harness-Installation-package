@@ -54,6 +54,7 @@ Source: "D:\DS_workplace\install-files\tools\*"; DestDir: "{app}\tools"; Flags: 
 Name: "{autoprograms}\DeepSeek Harness\DeepSeek Harness"; Filename: "{app}\DeepSeek Harness.exe"; IconFilename: "{app}\favicon.ico"
 Name: "{autoprograms}\DeepSeek Harness\使用说明"; Filename: "{app}\使用说明.txt"
 Name: "{autoprograms}\DeepSeek Harness\卸载 DeepSeek Harness"; Filename: "{uninstallexe}"; IconFilename: "{app}\favicon.ico"
+Name: "{autoprograms}\卸载 DeepSeek Harness"; Filename: "{uninstallexe}"; IconFilename: "{app}\favicon.ico"
 Name: "{autodesktop}\DeepSeek Harness"; Filename: "{app}\DeepSeek Harness.exe"; IconFilename: "{app}\favicon.ico"; Tasks: desktopicon
 
 [Run]
