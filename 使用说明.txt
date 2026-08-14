@@ -54,6 +54,13 @@ GitHub: https://github.com/deepseek-ai/deepseek-harness
   DSH_HOME=<目录>      自定义用户数据目录
 
 七、常见问题
+  Q: 开始菜单里找不到卸载入口？
+  A: 点“开始”按钮后，在“所有应用”列表里找：
+     1) 顶层有一个“卸载 DeepSeek Harness”入口（无需打开文件夹）；
+     2) 或进入“DeepSeek Harness”文件夹，里面有“卸载 DeepSeek Harness”；
+     3) 也可以直接在开始菜单搜索框输入 DeepSeek，或到
+        Windows 设置 -> 应用 -> 已安装的应用 中卸载。
+     新装程序若几秒内未显示，稍等片刻或重启资源管理器即可。
   Q: 首次启动时看到“正在启动…”页面？
   A: 首次启动需要初始化本地配置（约 15~30 秒），页面会自动跳转进入软件；
      之后每次启动只需 1~2 秒。
