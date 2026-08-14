@@ -132,7 +132,22 @@ async function ensureInstalled(installDir) {
   for (let i = 0; i < 60; i++) {
     try { lockFd = fs.openSync(lockPath, "wx"); break; } catch (e) {
       if (e.code === "EEXIST") {
-        // 其他进程正在安装：等它完成
+        // 其他进程正在安装：等它完成；若持有者已死则清锁重试
+        let holderDead = false;
+        try {
+          const holder = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+          if (typeof holder.pid === "number" && holder.pid > 0) {
+            try { process.kill(holder.pid, 0); } catch (_) { holderDead = true; }
+          } else holderDead = Date.now() - (holder.time ?? 0) > 120000;
+        } catch (_) {
+          const st = fs.statSync(lockPath);
+          holderDead = Date.now() - st.mtimeMs > 120000;
+        }
+        if (holderDead) {
+          try { fs.rmSync(lockPath, { force: true }); } catch (_) {}
+          log("检测到残留的安装锁，已清理。");
+          continue;
+        }
         await sleep(1000);
         if (fs.existsSync(marker)) {
           try { if (fs.readFileSync(marker, "utf8").trim() === INSTALL_VERSION) return; } catch (_) {}
@@ -144,6 +159,7 @@ async function ensureInstalled(installDir) {
     }
   }
   if (lockFd === null) { log("错误：无法获取安装锁。"); process.exit(3); }
+  try { fs.writeFileSync(lockFd, JSON.stringify({ pid: process.pid, time: Date.now() }), "utf8"); } catch (_) {}
   try {
     log("首次安装：正在解压 DeepSeek Harness 运行时（约 1-3 分钟，请稍候）…");
     const staging = installDir + ".staging-" + process.pid;
@@ -393,7 +409,6 @@ async function main() {
   // 3) 自己启动
   const port = await findFreePort(BASE_PORT);
   if (port === null) { log("错误：找不到可用端口（从 " + BASE_PORT + " 起）。"); process.exit(1); }
-  writeLock(port);
   let out = "ignore";
   if (logDir) {
     try { out = fs.openSync(path.join(logDir, "dsh-web.log"), "a"); if (typeof out === "number") logFd = out; } catch (_) {}
