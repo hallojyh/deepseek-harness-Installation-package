@@ -19,7 +19,11 @@ const BASE_PORT = Number(process.env.DSH_BASE_PORT) > 0 ? Number(process.env.DSH
 const NO_BROWSER = process.env.DSH_NO_BROWSER === "1";
 const ARGS = process.argv.slice(2);
 
-function log(msg) { try { process.stdout.write(msg + "\n"); } catch (_) {} }
+let logFd = null;
+function log(msg) {
+  try { process.stdout.write(msg + "\n"); } catch (_) {}
+  try { if (logFd !== null) fs.writeSync(logFd, msg + "\n"); } catch (_) {}
+}
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
 function resolveInstallDir() {
@@ -292,17 +296,34 @@ function ensureProfileJunctions(installDir) {
     const nmScope = path.join(profileDir, "node_modules");
     const link = path.join(nmScope, "@deepseek-ai");
     try {
-      if (fs.existsSync(link)) continue; // 已存在（junction 或 pnpm 管理的真实目录）则不打扰
       fs.mkdirSync(nmScope, { recursive: true });
-      fs.symlinkSync(target, link, "junction");
+      if (fs.existsSync(link)) {
+        if (fs.existsSync(path.join(link, "dsh-base"))) continue; // 已就绪（联接或完整目录）
+        // 存在但不完整（如残留的 pnpm 目录）：挪开，让标准解析走安装目录
+        try { fs.renameSync(link, link + ".incomplete-" + Date.now()); }
+        catch (_) { try { fs.rmSync(link, { recursive: true, force: true }); } catch (_) {} }
+        log("发现残缺的插件目录，已移开并重建联接: " + profile);
+      }
+      try {
+        fs.symlinkSync(target, link, "junction");
+      } catch (err1) {
+        const r = spawnSync("cmd", ["/d", "/s", "/c", 'mklink /J "' + link + '" "' + target + '"'], { windowsHide: true });
+        if (r.status !== 0) throw err1;
+      }
       log("已建立插件解析联接: " + profile);
-    } catch (_) {}
+    } catch (e) {
+      log("警告：插件解析联接建立失败（" + profile + "）：" + (e && e.message));
+    }
   }
 }
 
 async function main() {
   const installDir = resolveInstallDir();
   const siblingMode = fs.existsSync(path.join(installDir, "runtime", "node.exe"));
+  const earlyLogDir = resolveLogDir(installDir);
+  if (earlyLogDir) {
+    try { logFd = fs.openSync(path.join(earlyLogDir, "dsh-web.log"), "a"); } catch (_) {}
+  }
   if (siblingMode) ensureProfileJunctions(installDir);
   if (!siblingMode) {
     await ensureInstalled(installDir);
@@ -326,8 +347,12 @@ async function main() {
   const readLock = () => {
     try { return JSON.parse(fs.readFileSync(lockPath, "utf8")); } catch (_) { return null; }
   };
-  const writeLock = (port) => {
-    try { fs.writeFileSync(lockPath, JSON.stringify({ port, time: Date.now() }), { flag: "wx" }); return true; } catch (_) { return false; }
+  const writeLock = (port, pid) => {
+    try { fs.writeFileSync(lockPath, JSON.stringify({ port, pid: pid ?? 0, time: Date.now() }), { flag: "wx" }); return true; } catch (_) { return false; }
+  };
+  const lockAlive = (lock) => {
+    if (!lock || typeof lock.pid !== "number" || lock.pid <= 0) return Date.now() - (lock.time ?? 0) < 30000;
+    try { process.kill(lock.pid, 0); return true; } catch (_) { return false; }
   };
 
   // 1) 已有实例：直接打开
@@ -340,27 +365,29 @@ async function main() {
 
   // 2) 另一个启动器正在引导：等待其端口就绪（避免慢启动期间重复开服）
   const booting = readLock();
-  if (booting && typeof booting.port === "number" && Date.now() - booting.time < 90000) {
+  if (booting && typeof booting.port === "number" && lockAlive(booting)) {
     log("检测到正在进行的启动，等待其就绪（端口 " + booting.port + "）…");
-    for (let i = 0; i < 90; i++) {
-      const r = await httpGet("http://127.0.0.1:" + booting.port + "/", 1000);
+    for (let i = 0; i < 60; i++) {
+      if (!lockAlive(booting) && !(await tcpConnect(booting.port))) break; // 进程已死且端口未监听 -> 陈旧锁
+      const r = await httpGet("http://127.0.0.1:" + booting.port + "/", 1500);
       if (r.ok) {
         openBrowser("http://127.0.0.1:" + booting.port);
         process.exit(0);
       }
       await sleep(1000);
     }
+    log("此前的启动已失效，清理并重新启动。");
     try { fs.rmSync(lockPath, { force: true }); } catch (_) {}
   }
 
   // 3) 自己启动
   const port = await findFreePort(BASE_PORT);
   if (port === null) { log("错误：找不到可用端口（从 " + BASE_PORT + " 起）。"); process.exit(1); }
-  writeLock(port);
   let out = "ignore";
   if (logDir) {
-    try { out = fs.openSync(path.join(logDir, "dsh-web.log"), "a"); } catch (_) {}
+    try { out = fs.openSync(path.join(logDir, "dsh-web.log"), "a"); if (typeof out === "number") logFd = out; } catch (_) {}
   }
+  writeLock(port, -1);
   const child = spawn(NODE_EXE, [BIN_JS, "web", "--host", "127.0.0.1", "--port", String(port)], {
     detached: true,
     stdio: ["ignore", out, out],
@@ -369,6 +396,9 @@ async function main() {
     cwd: installDir,
   });
   child.unref();
+  if (child.pid > 0) {
+    try { fs.writeFileSync(lockPath, JSON.stringify({ port, pid: child.pid, time: Date.now() }), "utf8"); } catch (_) {}
+  }
   const url = "http://127.0.0.1:" + port;
 
   // 4) 快速失败检测：服务在数秒内退出说明启动失败，改为错误页并附日志
@@ -376,6 +406,7 @@ async function main() {
   for (let i = 0; i < 6; i++) {
     await sleep(500);
     if (child.exitCode !== null) {
+      try { fs.rmSync(lockPath, { force: true }); } catch (_) {}
       try {
         const logFile = path.join(logDir ?? path.join(installDir, "logs"), "dsh-web.log");
         const tail = fs.readFileSync(logFile, "utf8").split(/\r?\n/).slice(-25).join("\n");
