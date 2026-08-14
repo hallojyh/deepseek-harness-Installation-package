@@ -5,7 +5,7 @@
 将开源项目 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（上游 0.1.0-rc.6，MIT 协议）封装为标准 Windows 安装包形态，开箱即用，无需安装 Node.js / npm / pnpm。
 
 - **封装版本**：v0.1.0
-- **安装包 / 绿色版 / 发布包**：均见 [Releases](https://github.com/hallojyh/deepseek-harness-Installation-package/releases) 附件
+- **安装包 / 绿色版**：见 [Releases](https://github.com/hallojyh/deepseek-harness-Installation-package/releases) 附件（发布包 zip 已停发，其内容与上述两个文件重复）
 - 安装包为向导式安装（可选安装路径，含许可协议页）
 
 ## 功能特性
