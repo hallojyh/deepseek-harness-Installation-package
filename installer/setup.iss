@@ -46,6 +46,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "D:\DS_workplace\install-files\DeepSeek Harness.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "D:\DS_workplace\launcher-src\favicon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "D:\DS_workplace\使用说明.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "D:\DS_workplace\install-files\prewarm.js"; DestDir: "{app}"; Flags: ignoreversion
 Source: "D:\DS_workplace\install-files\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "D:\DS_workplace\install-files\app\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "D:\DS_workplace\install-files\tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -58,6 +59,7 @@ Name: "{autoprograms}\卸载 DeepSeek Harness"; Filename: "{uninstallexe}"; Icon
 Name: "{autodesktop}\DeepSeek Harness"; Filename: "{app}\DeepSeek Harness.exe"; IconFilename: "{app}\favicon.ico"; Tasks: desktopicon
 
 [Run]
+Filename: "{app}\runtime\node.exe"; Parameters: """{app}\prewarm.js"" ""{app}\runtime\node.exe"" ""{app}\app\lib\bin.js"" 31415"; WorkingDir: "{app}"; StatusMsg: "正在初始化首次运行环境（约需 10~30 秒）..."; Flags: runhidden waituntilterminated skipifsilent
 Filename: "{app}\DeepSeek Harness.exe"; Description: "{cm:LaunchProgram,DeepSeek Harness}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent shellexec
 
 [UninstallDelete]
