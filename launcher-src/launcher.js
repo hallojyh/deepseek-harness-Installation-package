@@ -291,9 +291,7 @@ function ensureProfileJunctions(installDir) {
   const target = path.join(installDir, "app", "node_modules", "@deepseek-ai");
   if (!fs.existsSync(path.join(target, "dsh-base"))) return;
   const home = (process.env.DSH_HOME || "").trim() || path.join(require("node:os").homedir(), ".dsh");
-  for (const profile of ["web", "headless"]) {
-    const profileDir = path.join(home, "profiles", profile);
-    const nmScope = path.join(profileDir, "node_modules");
+  const junctionFor = (nmScope) => {
     const link = path.join(nmScope, "@deepseek-ai");
     try {
       fs.mkdirSync(nmScope, { recursive: true });
@@ -301,11 +299,11 @@ function ensureProfileJunctions(installDir) {
         fs.existsSync(path.join(p, "dsh-base", "lib", "index.js")) &&
         fs.existsSync(path.join(p, "cordis-plugin-timer", "lib", "index.js"));
       if (fs.existsSync(link)) {
-        if (healthy(link)) continue; // 已就绪（完整联接或完整真实目录）
+        if (healthy(link)) return; // 已就绪（完整联接或完整真实目录）
         // 存在但为空壳/残缺：挪开，让标准解析走安装目录
         try { fs.renameSync(link, link + ".incomplete-" + Date.now()); }
         catch (_) { try { fs.rmSync(link, { recursive: true, force: true }); } catch (_) {} }
-        log("发现残缺的插件目录，已移开并重建联接: " + profile);
+        log("发现残缺的插件目录，已移开并重建联接: " + nmScope);
       }
       let created = false;
       try {
@@ -317,10 +315,15 @@ function ensureProfileJunctions(installDir) {
         created = true;
       }
       if (!healthy(link)) throw new Error("联接已建但解析不到插件包，可能被系统还原");
-      log("已建立插件解析联接: " + profile + (created ? "" : ""));
+      log("已建立插件解析联接: " + nmScope);
     } catch (e) {
-      log("警告：插件解析联接建立失败（" + profile + "）：" + (e && e.message));
+      log("警告：插件解析联接建立失败（" + nmScope + "）：" + (e && e.message));
     }
+  };
+  // 兜底层：.dsh/node_modules 上的联接（pnpm 只管理各 profile 内的 node_modules，不会动这一层）
+  try { junctionFor(path.join(home, "node_modules")); } catch (_) {}
+  for (const profile of ["web", "headless"]) {
+    try { junctionFor(path.join(home, "profiles", profile, "node_modules")); } catch (_) {}
   }
 }
 
