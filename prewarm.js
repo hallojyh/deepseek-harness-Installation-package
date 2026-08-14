@@ -34,8 +34,7 @@ function ensureProfileJunctions() {
   const fs = require("node:fs");
   if (!fs.existsSync(require("node:path").join(target, "dsh-base"))) return;
   const home = (process.env.DSH_HOME || "").trim() || require("node:path").join(require("node:os").homedir(), ".dsh");
-  for (const profile of ["web", "headless"]) {
-    const nmScope = require("node:path").join(home, "profiles", profile, "node_modules");
+  const junctionFor = (nmScope) => {
     const link = require("node:path").join(nmScope, "@deepseek-ai");
     try {
       const healthy = (p) =>
@@ -49,6 +48,10 @@ function ensureProfileJunctions() {
       fs.mkdirSync(nmScope, { recursive: true });
       fs.symlinkSync(target, link, "junction");
     } catch (_) {}
+  };
+  try { junctionFor(require("node:path").join(home, "node_modules")); } catch (_) {}
+  for (const profile of ["web", "headless"]) {
+    try { junctionFor(require("node:path").join(home, "profiles", profile, "node_modules")); } catch (_) {}
   }
 }
 ensureProfileJunctions();
