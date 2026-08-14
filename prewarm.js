@@ -26,6 +26,26 @@ function httpGet(url, ms) {
   });
 }
 
+
+function ensureProfileJunctions() {
+  if (process.platform !== "win32") return;
+  const appDir = __dirname;
+  const target = require("node:path").join(appDir, "app", "node_modules", "@deepseek-ai");
+  const fs = require("node:fs");
+  if (!fs.existsSync(require("node:path").join(target, "dsh-base"))) return;
+  const home = (process.env.DSH_HOME || "").trim() || require("node:path").join(require("node:os").homedir(), ".dsh");
+  for (const profile of ["web", "headless"]) {
+    const nmScope = require("node:path").join(home, "profiles", profile, "node_modules");
+    const link = require("node:path").join(nmScope, "@deepseek-ai");
+    try {
+      if (fs.existsSync(link)) continue;
+      fs.mkdirSync(nmScope, { recursive: true });
+      fs.symlinkSync(target, link, "junction");
+    } catch (_) {}
+  }
+}
+ensureProfileJunctions();
+
 const child = spawn(nodeBin, [binJs, "web", "--host", "127.0.0.1", "--port", String(port)], {
   stdio: "ignore",
   windowsHide: true,
