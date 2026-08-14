@@ -279,9 +279,31 @@ function writeSplash(logDir, installDir, port, failedText) {
   }
 }
 
+// 为内置 profile 创建指向安装目录 @deepseek-ai 包的 junction：
+// 让插件解析走纯标准 Node 解析（profile/node_modules/@deepseek-ai -> 安装目录），
+// 不依赖原生加载器的目录桥接（在部分设备上该桥接会失效，导致启动卡死）。
+function ensureProfileJunctions(installDir) {
+  if (process.platform !== "win32") return;
+  const target = path.join(installDir, "app", "node_modules", "@deepseek-ai");
+  if (!fs.existsSync(path.join(target, "dsh-base"))) return;
+  const home = (process.env.DSH_HOME || "").trim() || path.join(require("node:os").homedir(), ".dsh");
+  for (const profile of ["web", "headless"]) {
+    const profileDir = path.join(home, "profiles", profile);
+    const nmScope = path.join(profileDir, "node_modules");
+    const link = path.join(nmScope, "@deepseek-ai");
+    try {
+      if (fs.existsSync(link)) continue; // 已存在（junction 或 pnpm 管理的真实目录）则不打扰
+      fs.mkdirSync(nmScope, { recursive: true });
+      fs.symlinkSync(target, link, "junction");
+      log("已建立插件解析联接: " + profile);
+    } catch (_) {}
+  }
+}
+
 async function main() {
   const installDir = resolveInstallDir();
   const siblingMode = fs.existsSync(path.join(installDir, "runtime", "node.exe"));
+  if (siblingMode) ensureProfileJunctions(installDir);
   if (!siblingMode) {
     await ensureInstalled(installDir);
   }
