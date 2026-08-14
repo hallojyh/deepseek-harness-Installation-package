@@ -5,7 +5,7 @@
 A third-party Windows installer packaging of the open-source project [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) (upstream 0.1.0-rc.6, MIT License). Works out of the box — no need to install Node.js / npm / pnpm.
 
 - **Package version**: v0.1.0
-- **Setup / portable exe**: see [Releases](https://github.com/hallojyh/deepseek-harness-Installation-package/releases) (the bundle zip was retired — its content duplicates the two files above)
+- **Setup / portable exe / bundle zip**: see [Releases](https://github.com/hallojyh/deepseek-harness-Installation-package/releases)
 - Wizard-style installer: custom install path, license agreement page included
 
 ## Features
