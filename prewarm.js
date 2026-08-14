@@ -38,7 +38,14 @@ function ensureProfileJunctions() {
     const nmScope = require("node:path").join(home, "profiles", profile, "node_modules");
     const link = require("node:path").join(nmScope, "@deepseek-ai");
     try {
-      if (fs.existsSync(link)) continue;
+      const healthy = (p) =>
+        fs.existsSync(require("node:path").join(p, "dsh-base", "lib", "index.js")) &&
+        fs.existsSync(require("node:path").join(p, "cordis-plugin-timer", "lib", "index.js"));
+      if (fs.existsSync(link)) {
+        if (healthy(link)) continue;
+        try { fs.renameSync(link, link + ".incomplete-" + Date.now()); }
+        catch (_) { try { fs.rmSync(link, { recursive: true, force: true }); } catch (_) {} }
+      }
       fs.mkdirSync(nmScope, { recursive: true });
       fs.symlinkSync(target, link, "junction");
     } catch (_) {}
