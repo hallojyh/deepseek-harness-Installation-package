@@ -4,7 +4,7 @@
 // 之后运行：直接复用安装目录。
 // 行为：带参数 -> CLI 透传 node app/lib/bin.js <args...>
 //       无参数 -> GUI 模式：若已有实例则打开浏览器；否则后台启动 web 服务并自动打开浏览器。
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
 const net = require("node:net");
@@ -297,20 +297,27 @@ function ensureProfileJunctions(installDir) {
     const link = path.join(nmScope, "@deepseek-ai");
     try {
       fs.mkdirSync(nmScope, { recursive: true });
+      const healthy = (p) =>
+        fs.existsSync(path.join(p, "dsh-base", "lib", "index.js")) &&
+        fs.existsSync(path.join(p, "cordis-plugin-timer", "lib", "index.js"));
       if (fs.existsSync(link)) {
-        if (fs.existsSync(path.join(link, "dsh-base"))) continue; // 已就绪（联接或完整目录）
-        // 存在但不完整（如残留的 pnpm 目录）：挪开，让标准解析走安装目录
+        if (healthy(link)) continue; // 已就绪（完整联接或完整真实目录）
+        // 存在但为空壳/残缺：挪开，让标准解析走安装目录
         try { fs.renameSync(link, link + ".incomplete-" + Date.now()); }
         catch (_) { try { fs.rmSync(link, { recursive: true, force: true }); } catch (_) {} }
         log("发现残缺的插件目录，已移开并重建联接: " + profile);
       }
+      let created = false;
       try {
         fs.symlinkSync(target, link, "junction");
+        created = true;
       } catch (err1) {
-        const r = spawnSync("cmd", ["/d", "/s", "/c", 'mklink /J "' + link + '" "' + target + '"'], { windowsHide: true });
-        if (r.status !== 0) throw err1;
+        const r = spawnSync("cmd", ["/d", "/s", "/c", 'mklink /J "' + link + '" "' + target + '"'], { windowsHide: true, encoding: "utf8" });
+        if (r.status !== 0) throw new Error(err1 && err1.message + " | mklink: " + (r.stderr || r.stdout || "").trim());
+        created = true;
       }
-      log("已建立插件解析联接: " + profile);
+      if (!healthy(link)) throw new Error("联接已建但解析不到插件包，可能被系统还原");
+      log("已建立插件解析联接: " + profile + (created ? "" : ""));
     } catch (e) {
       log("警告：插件解析联接建立失败（" + profile + "）：" + (e && e.message));
     }
