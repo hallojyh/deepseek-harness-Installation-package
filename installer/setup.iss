@@ -58,7 +58,7 @@ Name: "{autoprograms}\卸载 DeepSeek Harness"; Filename: "{uninstallexe}"; Icon
 Name: "{autodesktop}\DeepSeek Harness"; Filename: "{app}\DeepSeek Harness.exe"; IconFilename: "{app}\favicon.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\DeepSeek Harness.exe"; Description: "{cm:LaunchProgram,DeepSeek Harness}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\DeepSeek Harness.exe"; Description: "{cm:LaunchProgram,DeepSeek Harness}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent shellexec
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\logs"
