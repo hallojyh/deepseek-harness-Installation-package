@@ -1,0 +1,6 @@
+{
+  "main": "dist.cjs",
+  "output": "sea-prep-install.blob",
+  "disableExperimentalSEAWarning": true,
+  "useCodeCache": true
+}

@@ -1,0 +1,9 @@
+{
+  "main": "dist.cjs",
+  "output": "sea-prep.blob",
+  "disableExperimentalSEAWarning": true,
+  "useCodeCache": true,
+  "assets": {
+    "payload.tar.gz": "D:\\DS_workplace\\payload.tar.gz"
+  }
+}

@@ -1,0 +1,20 @@
+# 依赖与构建中间产物
+launcher-src/node_modules/
+launcher-src/dist.cjs
+launcher-src/sea-prep.blob
+launcher-src/sea-prep-install.blob
+launcher-src/check-icon.js
+launcher-src/icon-preview.png
+
+# 重建产物（不纳入版本库）
+install-files/
+payload.tar.gz
+DeepSeek-Harness.exe
+DeepSeek-Harness-发布包.zip
+
+# 日志与临时文件
+logs/
+*.log
+*.tmp
+# 二进制产物统一发布到 Releases
+dist/
